@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ki00",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-18",
+  "compatibility_flags": ["nodejs_compat"],
+  // Replace with your Cloudflare account id before deploying.
+  // "account_id": "<account-id>",
+  "assets": {
+    "directory": "./web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*", "/health"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ki00",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "KI00_ENV": "production",
+    "KI00_DEMO": "0",
+    "KI00_APP_NAME": "KI00",
+    "KI00_WRANGLER_VERSION": "4.151.1",
+    "KI00_DEFAULT_ACCOUNT_ID": "",
+    "KI00_DEFAULT_GITHUB_OWNER": ""
+  }
+}
