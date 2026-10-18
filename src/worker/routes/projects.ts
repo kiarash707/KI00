@@ -29,6 +29,22 @@ import { isDemo } from "../lib/providers";
 
 export const projectRoutes = new Hono<AppEnv>();
 
+/** Encrypts with a clear, actionable error when KI00_ENCRYPTION_KEY is missing or malformed. */
+async function encryptProjectValue(value: string, key: string | undefined): Promise<string> {
+  if (!key) {
+    throw new ApiError(503, "ENCRYPTION_KEY_MISSING", "KI00_ENCRYPTION_KEY is not configured", {
+      hint: "Set KI00_ENCRYPTION_KEY to 32 random bytes, base64 encoded (openssl rand -base64 32).",
+    });
+  }
+  try {
+    return await encryptValue(value, key);
+  } catch {
+    throw new ApiError(503, "ENCRYPTION_KEY_INVALID", "KI00_ENCRYPTION_KEY cannot encrypt data", {
+      hint: "Set KI00_ENCRYPTION_KEY to exactly 32 random bytes, base64 encoded (openssl rand -base64 32), then retry.",
+    });
+  }
+}
+
 projectRoutes.get("/projects", async (c) => {
   const { workspace } = requireAuth(c);
   const { page, perPage, offset } = parsePagination(c);
@@ -525,9 +541,6 @@ projectRoutes.post("/projects/:id/variables", async (c) => {
   const runtimeAllowed = row.runtime_kind === "worker" && body.scope === "production";
   const useRuntime = runtimeAllowed ? body.useRuntime : false;
 
-  if (!c.env.KI00_ENCRYPTION_KEY) {
-    throw new ApiError(503, "ENCRYPTION_KEY_MISSING", "KI00_ENCRYPTION_KEY is not configured");
-  }
   const duplicate = await dbFirst<{ id: string }>(
     c.env.DB,
     "SELECT id FROM env_vars WHERE project_id = ? AND key = ? AND scope = ?",
@@ -538,7 +551,7 @@ projectRoutes.post("/projects/:id/variables", async (c) => {
   if (duplicate) {
     throw new ApiError(409, "VARIABLE_EXISTS", `${body.key} already exists in ${body.scope}`);
   }
-  const encrypted = await encryptValue(body.value, c.env.KI00_ENCRYPTION_KEY);
+  const encrypted = await encryptProjectValue(body.value, c.env.KI00_ENCRYPTION_KEY);
   const id = newId("env");
   const ts = now();
   await dbRun(
@@ -626,7 +639,7 @@ projectRoutes.patch("/projects/:id/variables/:varId", async (c) => {
   const useRuntime = runtimeAllowed ? (body.useRuntime ?? Boolean(variable.use_runtime)) : false;
   const encrypted =
     typeof body.value === "string" && body.value.length > 0
-      ? await encryptValue(body.value, c.env.KI00_ENCRYPTION_KEY)
+      ? await encryptProjectValue(body.value, c.env.KI00_ENCRYPTION_KEY)
       : variable.value_enc;
 
   await dbRun(
